@@ -8,9 +8,8 @@ import com.philips.lighting.hue.sdk.utilities.PHUtilities;
 import com.philips.lighting.model.*;
 
 import java.util.List;
+import java.util.Random;
 import java.util.Scanner;
-
-import static com.philips.lighting.model.PHLight.PHLightType;
 
 /**
  * @author Christian Marker on 12/06/2018 at 22:46.
@@ -51,24 +50,24 @@ public class Controller {
 		
 		if (choice <= allLights.size()) {
 			
-			menu((allLights.get(choice - 1)), bridge);
-			
-			//changeBrightness(allLights.get((choice - 1)), bridge);
+			selectedLightMenu((allLights.get(choice - 1)), bridge);
 			
 		} else {
 			
 			System.out.println("Number is too high");
-			
+			listAllLights();
 		}
 	}
 	
 	
-	public void menu(PHLight light, PHBridge bridge) {
+	public void selectedLightMenu(PHLight light, PHBridge bridge) {
 		
 		System.out.println("WHAT DO YOU WANT TO DO?");
 		System.out.println("1: Change brightness");
 		System.out.println("2: Change power state");
 		System.out.println("3: Change color of the light");
+		System.out.println("----------------");
+		System.out.println("9: Back");
 		
 		Scanner scanner = new Scanner(System.in);
 		int choice = scanner.nextInt();
@@ -87,9 +86,13 @@ public class Controller {
 				changeColor(light, bridge);
 				break;
 			
+			case 9:
+				listAllLights();
+				break;
+			
 			default:
 				System.out.println("ERROR! Enter a valid number");
-				menu(light,bridge);
+				selectedLightMenu(light,bridge);
 		}
 		
 		
@@ -103,12 +106,15 @@ public class Controller {
 		int b = 0;
 		
 		System.out.println("ENTER A CHOICE!");
-		System.out.println("1 = WHITE");
-		System.out.println("2 = BLUE");
-		System.out.println("3 = GREEN");
-		System.out.println("4 = YELLOW");
-		System.out.println("5 = RED");
-		System.out.println("6 = CUSTOM");
+		System.out.println("1: White");
+		System.out.println("2: Blue");
+		System.out.println("3: Green");
+		System.out.println("4: Yellow");
+		System.out.println("5: Red");
+		System.out.println("6: Custom");
+		System.out.println("7: Random");
+		System.out.println("--------------");
+		System.out.println("9: Back");
 		int choice = scanner.nextInt();
 		
 		switch (choice) {
@@ -160,6 +166,20 @@ public class Controller {
 				b = scanner.nextInt();
 				break;
 			
+			case 7:
+				//RANDOM
+				Random random = new Random();
+				
+				r = random.nextInt(255);
+				g = random.nextInt(255);
+				b = random.nextInt(255);
+				break;
+			
+			case 9:
+				//BACK
+				selectedLightMenu(light,bridge);
+				break;
+			
 			default:
 				System.out.println("ERROR! Enter a valid number");
 				changeColor(light,bridge);
@@ -184,7 +204,9 @@ public class Controller {
 			
 		}*/
 		
-		listAllLights();
+		selectedLightMenu(light, bridge);
+		
+		//listAllLights();
 		
 	}
 	
@@ -200,7 +222,8 @@ public class Controller {
 		
 		bridge.updateLightState(light, lightState);
 		
-		listAllLights();
+		selectedLightMenu(light, bridge);
+		//listAllLights();
 	}
 	
 	
@@ -226,7 +249,8 @@ public class Controller {
 			e.printStackTrace();
 		}
 		
-		listAllLights();
+		selectedLightMenu(light, bridge);
+		//listAllLights();
 		
 	}
 	
