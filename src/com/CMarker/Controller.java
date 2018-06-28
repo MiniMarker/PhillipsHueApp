@@ -11,11 +11,15 @@ import java.util.List;
 import java.util.Random;
 import java.util.Scanner;
 
+import static com.philips.lighting.model.PHLight.PHLightType.COLOR_LIGHT;
+import static com.philips.lighting.model.PHLight.PHLightType.CT_COLOR_LIGHT;
+
 /**
  * @author Christian Marker on 12/06/2018 at 22:46.
  */
 public class Controller {
 	
+	//TODO make bridge a field!
 	private PHHueSDK phHueSDK;
 	private Controller instance;
 	
@@ -32,7 +36,7 @@ public class Controller {
 		sm.search(true, true);
 	}
 	
-	public void listAllLights() {
+	private void listAllLights() {
 		PHBridge bridge = phHueSDK.getSelectedBridge();
 		PHBridgeResourcesCache cache = bridge.getResourceCache();
 		
@@ -60,12 +64,16 @@ public class Controller {
 	}
 	
 	
-	public void selectedLightMenu(PHLight light, PHBridge bridge) {
+	private void selectedLightMenu(PHLight light, PHBridge bridge) {
 		
 		System.out.println("WHAT DO YOU WANT TO DO?");
 		System.out.println("1: Change brightness");
 		System.out.println("2: Change power state");
-		System.out.println("3: Change color of the light");
+		
+		if (light.getLightType() == CT_COLOR_LIGHT || light.getLightType() == COLOR_LIGHT ){
+			System.out.println("3: Change color of the light");
+		}
+		
 		System.out.println("----------------");
 		System.out.println("9: Back");
 		
@@ -98,7 +106,13 @@ public class Controller {
 		
 	}
 	
-	public void changeColor(PHLight light, PHBridge bridge){
+	private void changeColor(PHLight light, PHBridge bridge){
+		
+		if (light.getLightType() != CT_COLOR_LIGHT || light.getLightType() != COLOR_LIGHT ){
+			System.out.println("This bulb does not support colors!");
+			selectedLightMenu(light,bridge);
+			return;
+		}
 		
 		Scanner scanner = new Scanner(System.in);
 		int r = 0;
@@ -121,9 +135,9 @@ public class Controller {
 			
 			case 1:
 				//WHITE
-				r = 0;
-				g = 0;
-				b = 0;
+				r = 255;
+				g = 255;
+				b = 255;
 				break;
 			
 			case 2:
@@ -173,6 +187,7 @@ public class Controller {
 				r = random.nextInt(255);
 				g = random.nextInt(255);
 				b = random.nextInt(255);
+				
 				break;
 			
 			case 9:
@@ -185,45 +200,38 @@ public class Controller {
 				changeColor(light,bridge);
 		}
 		
-		
+		//Setting the colors
 		PHLightState lightState = new PHLightState();
 		float[] xy = PHUtilities.calculateXYFromRGB(r, g, b, PHLight.PHLightColorMode.COLORMODE_XY.getValue());
-		System.out.println(xy);
+		System.out.println(xy[0] + " " + xy[1]);
 		lightState.setX(xy[0]);
 		lightState.setY(xy[1]);
 		
 		bridge.updateLightState(light, lightState);
 		
-		/*if (!light.getLightType().equals("CT_COLOR_LIGHT")){
-			
-			System.out.println("Chosen light is of type: " + light.getLightType() + ". this light type is incapable with colors");
-			
-		} else {
-			
-		
-			
-		}*/
-		
 		selectedLightMenu(light, bridge);
-		
-		//listAllLights();
-		
 	}
 	
-	public void changePowerState(PHLight light, PHBridge bridge) {
+	/**
+	 * This method checks the last known light state and sets the opposite power state
+	 *
+	 * @param light light to be changed
+	 * @param bridge connected bridge
+	 */
+	private void changePowerState(PHLight light, PHBridge bridge) {
 		PHLightState lightState = light.getLastKnownLightState();
 		
 		if (lightState.isOn()){
 			lightState.setOn(false);
+			System.out.println("Turned " + light.getName() + " OFF");
 		} else {
 			lightState.setOn(true);
+			System.out.println("Turned " + light.getName() + " ON");
 		}
-		
 		
 		bridge.updateLightState(light, lightState);
 		
 		selectedLightMenu(light, bridge);
-		//listAllLights();
 	}
 	
 	
@@ -250,7 +258,6 @@ public class Controller {
 		}
 		
 		selectedLightMenu(light, bridge);
-		//listAllLights();
 		
 	}
 	
