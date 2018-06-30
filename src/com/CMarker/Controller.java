@@ -7,6 +7,7 @@ import com.philips.lighting.hue.sdk.PHSDKListener;
 import com.philips.lighting.hue.sdk.utilities.PHUtilities;
 import com.philips.lighting.model.*;
 
+import javax.sound.sampled.*;
 import java.util.List;
 import java.util.Random;
 import java.util.Scanner;
@@ -20,6 +21,7 @@ import static com.philips.lighting.model.PHLight.PHLightType.CT_COLOR_LIGHT;
 public class Controller {
 	
 	//TODO make bridge a field!
+	private PHBridge connectedBridge;
 	private PHHueSDK phHueSDK;
 	private Controller instance;
 	
@@ -54,7 +56,7 @@ public class Controller {
 		
 		if (choice <= allLights.size()) {
 			
-			selectedLightMenu((allLights.get(choice - 1)), bridge);
+			selectedLightMenu((allLights.get(choice - 1)));
 			
 		} else {
 			
@@ -64,13 +66,13 @@ public class Controller {
 	}
 	
 	
-	private void selectedLightMenu(PHLight light, PHBridge bridge) {
+	private void selectedLightMenu(PHLight light) {
 		
 		System.out.println("WHAT DO YOU WANT TO DO?");
 		System.out.println("1: Change brightness");
 		System.out.println("2: Change power state");
 		
-		if (light.getLightType() == CT_COLOR_LIGHT || light.getLightType() == COLOR_LIGHT ){
+		if (light.getLightType() == CT_COLOR_LIGHT || light.getLightType() == COLOR_LIGHT) {
 			System.out.println("3: Change color of the light");
 		}
 		
@@ -83,15 +85,19 @@ public class Controller {
 		switch (choice) {
 			
 			case 1:
-				changeBrightness(light, bridge);
+				changeBrightness(light);
 				break;
 			
-				case 2:
-				changePowerState(light, bridge);
+			case 2:
+				changePowerState(light);
 				break;
 			
 			case 3:
-				changeColor(light, bridge);
+				changeColor(light);
+				break;
+			
+			case 4:
+				changeBrightnessBasedOnMicIn(light);
 				break;
 			
 			case 9:
@@ -100,19 +106,21 @@ public class Controller {
 			
 			default:
 				System.out.println("ERROR! Enter a valid number");
-				selectedLightMenu(light,bridge);
+				selectedLightMenu(light);
 		}
 		
 		
 	}
 	
-	private void changeColor(PHLight light, PHBridge bridge){
+	private void changeColor(PHLight light) {
 		
-		if (light.getLightType() != CT_COLOR_LIGHT || light.getLightType() != COLOR_LIGHT ){
+		System.out.println(light.getLightType());
+		
+		/*if (light.getLightType().toString().equals("CT_COLOR_LIGHT") || light.getLightType().toString().equals("COLOR_LIGHT")){
 			System.out.println("This bulb does not support colors!");
 			selectedLightMenu(light,bridge);
 			return;
-		}
+		}*/
 		
 		Scanner scanner = new Scanner(System.in);
 		int r = 0;
@@ -192,36 +200,35 @@ public class Controller {
 			
 			case 9:
 				//BACK
-				selectedLightMenu(light,bridge);
+				selectedLightMenu(light);
 				break;
 			
 			default:
 				System.out.println("ERROR! Enter a valid number");
-				changeColor(light,bridge);
+				changeColor(light);
 		}
 		
 		//Setting the colors
 		PHLightState lightState = new PHLightState();
+		
 		float[] xy = PHUtilities.calculateXYFromRGB(r, g, b, PHLight.PHLightColorMode.COLORMODE_XY.getValue());
-		System.out.println(xy[0] + " " + xy[1]);
 		lightState.setX(xy[0]);
 		lightState.setY(xy[1]);
 		
-		bridge.updateLightState(light, lightState);
+		phHueSDK.getSelectedBridge().updateLightState(light, lightState);
 		
-		selectedLightMenu(light, bridge);
+		selectedLightMenu(light);
 	}
 	
 	/**
 	 * This method checks the last known light state and sets the opposite power state
 	 *
 	 * @param light light to be changed
-	 * @param bridge connected bridge
 	 */
-	private void changePowerState(PHLight light, PHBridge bridge) {
+	private void changePowerState(PHLight light) {
 		PHLightState lightState = light.getLastKnownLightState();
 		
-		if (lightState.isOn()){
+		if (lightState.isOn()) {
 			lightState.setOn(false);
 			System.out.println("Turned " + light.getName() + " OFF");
 		} else {
@@ -229,15 +236,13 @@ public class Controller {
 			System.out.println("Turned " + light.getName() + " ON");
 		}
 		
-		bridge.updateLightState(light, lightState);
+		phHueSDK.getSelectedBridge().updateLightState(light, lightState);
 		
-		selectedLightMenu(light, bridge);
+		selectedLightMenu(light);
 	}
 	
 	
-	public void changeBrightness(PHLight light, PHBridge bridge) {
-		
-		System.out.println(light);
+	public void changeBrightness(PHLight light) {
 		
 		Scanner scanner = new Scanner(System.in);
 		System.out.println("ENTER A NEW BRIGHTNESS VALUE: ");
@@ -249,7 +254,7 @@ public class Controller {
 			
 			PHLightState lightState = new PHLightState();
 			lightState.setBrightness(updatedBrightness);
-			bridge.updateLightState(light, lightState);
+			phHueSDK.getSelectedBridge().updateLightState(light, lightState);
 			
 			Thread.sleep(1000);
 			
@@ -257,24 +262,103 @@ public class Controller {
 			e.printStackTrace();
 		}
 		
-		selectedLightMenu(light, bridge);
+		selectedLightMenu(light);
 		
 	}
+	
+	private void changeBrightnessBasedOnMicIn(PHLight light) {
+		
+		boolean stopRecording = false;
+		int counter = 0;
+		int level = 0;
+		byte tempBuffer[] = new byte[6000];
+		
+		try {
+			
+			AudioFormat format = new AudioFormat(AudioFormat.Encoding.PCM_SIGNED, 44100, 16, 2, 4, 44100, false);
+			DataLine.Info info = new DataLine.Info(TargetDataLine.class, format);
+			
+			PHLightState lightState = new PHLightState();
+			
+			if (!AudioSystem.isLineSupported(info)) {
+				System.out.println("This line is not supported");
+				return;
+			}
+			
+			TargetDataLine targetDataLine = (TargetDataLine) AudioSystem.getLine((info));
+			targetDataLine.open();
+			
+			System.out.println("Starting to record...");
+			targetDataLine.start();
+			
+			while (counter <= 200) {
+				
+				if (targetDataLine.read(tempBuffer, 0, tempBuffer.length) > 0) {
+					level = calculateRMSLevel(tempBuffer);
+					
+					lightState.setBrightness(level);
+					phHueSDK.getSelectedBridge().updateLightState(light, lightState);
+					
+					System.out.println(level);
+					counter++;
+				}
+			}
+			
+			targetDataLine.stop();
+			targetDataLine.close();
+			System.out.println("Recording stopped");
+			
+			
+		} catch (LineUnavailableException e) {
+			e.printStackTrace();
+		}
+	}
+	
+	
+	/**
+	 * Algorithm is copyed from https://stackoverflow.com/a/32622121
+	 *
+	 * @param audioData data segment to analyze
+	 * @return procent of input audio level
+	 */
+	public int calculateRMSLevel(byte[] audioData)
+	{
+		long lSum = 0;
+		for(int i=0; i < audioData.length; i++)
+			lSum = lSum + audioData[i];
+		
+		double dAvg = lSum / audioData.length;
+		double sumMeanSquare = 0d;
+		
+		for(int j=0; j < audioData.length; j++)
+			sumMeanSquare += Math.pow(audioData[j] - dAvg, 2d);
+		
+		double averageMeanSquare = sumMeanSquare / audioData.length;
+		
+		return (int)(Math.pow(averageMeanSquare,0.5d) + 0.5);
+	}
+	
 	
 	private PHSDKListener listener = new PHSDKListener() {
 		@Override
 		public void onCacheUpdated(List<Integer> list, PHBridge phBridge) {
-			
+		
 		}
 		
 		@Override
 		public void onBridgeConnected(PHBridge phBridge, String s) {
 			
 			phHueSDK.setSelectedBridge(phBridge);
+			phHueSDK.enableHeartbeat(phBridge, PHHueSDK.HB_INTERVAL);
 			
 			System.out.println("BRIDGE CONNECTED");
 			
-			phHueSDK.enableHeartbeat(phBridge, PHHueSDK.HB_INTERVAL);
+			try {
+				Thread.sleep(1000);
+				
+			} catch (InterruptedException e) {
+				e.printStackTrace();
+			}
 			
 			listAllLights();
 			
@@ -321,22 +405,22 @@ public class Controller {
 		
 		@Override
 		public void onError(int i, String s) {
-			
+		
 		}
 		
 		@Override
 		public void onConnectionResumed(PHBridge phBridge) {
-			
+		
 		}
 		
 		@Override
 		public void onConnectionLost(PHAccessPoint phAccessPoint) {
-			
+		
 		}
 		
 		@Override
 		public void onParsingErrors(List<PHHueParsingError> list) {
-			
+		
 		}
 	};
 	
@@ -346,5 +430,13 @@ public class Controller {
 	
 	public void setListener(PHSDKListener listener) {
 		this.listener = listener;
+	}
+	
+	public PHBridge getConnectedBridge() {
+		return connectedBridge;
+	}
+	
+	public void setConnectedBridge(PHBridge connectedBridge) {
+		this.connectedBridge = connectedBridge;
 	}
 }
