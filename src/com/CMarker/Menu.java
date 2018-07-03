@@ -32,7 +32,7 @@ public class Menu {
 			switch (choice) {
 				
 				case "1":
-					controller.findBridges();
+					controller.findBridgesOnNetwork();
 					break;
 				case "0":
 					flag = false;
@@ -41,9 +41,7 @@ public class Menu {
 					startMenu();
 				
 			}
-			
 		}
-		
 	}
 	
 	public void chooseLigthMenu() {
